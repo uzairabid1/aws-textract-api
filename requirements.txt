@@ -1,0 +1,6 @@
+boto3
+pillow
+requests
+flask
+flask_cors
+dotenv
