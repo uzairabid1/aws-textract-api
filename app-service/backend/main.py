@@ -1,3 +1,7 @@
+import sys
+
+sys.dont_write_bytecode = True
+
 import boto3
 from PIL import Image
 import requests
@@ -5,8 +9,9 @@ from io import BytesIO
 from flask import Flask,Blueprint, request
 import os
 from flask_cors import CORS
-
 from dotenv import load_dotenv
+
+
 
 load_dotenv()
 aws_region_name = os.getenv("aws_region_name")

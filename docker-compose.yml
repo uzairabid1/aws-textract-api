@@ -1,0 +1,15 @@
+version: "3.3"
+
+services:
+  app-service:
+    build: ./app-service
+    container_name: app-service
+    network_mode: host
+
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    environment:
+      - SERVER_NAME=0.0.0.0
+    restart: always
+    network_mode: host

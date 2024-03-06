@@ -1,2 +1,2 @@
-.env
+app-service/backend/.env
 textract-key-pair.pem
