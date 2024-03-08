@@ -24,6 +24,38 @@ app = Flask(__name__)
 CORS(app)
 
 
+@app.route("/textract/queries",methods=["POST"])
+def use_textract_queries():
+    try:
+        data = request.json 
+    except:
+        return ({"error": "No JSON object received!"}), 400
+    
+    if 'image_url' not in data:
+        return ({"error": "image url is missing!"}), 400
+    if 'query_list' not in data:
+        return ({"error": "query list is missing!"}), 400
+    client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+    response = requests.get(data['image_url'])
+    img_bytes = BytesIO(response.content)
+    data_list = {}
+    with BytesIO(response.content) as image:
+        img_bytes = bytearray(image.read())
+        response = client.analyze_document(
+            Document={'Bytes': img_bytes},
+            FeatureTypes=["QUERIES"],
+            QueriesConfig={
+                "Queries": data['query_list']
+            }
+        )
+
+        for idx, item in enumerate(response["Blocks"]):
+            if item["BlockType"] == "QUERY_RESULT":
+                data_list[response["Blocks"][response["Blocks"].index(item)-1]['Query']['Alias']]=item["Text"]       
+
+    return data_list,200
+
+
 @app.route("/textract/tables", methods=["POST"])
 def use_textract_tables():
     try:
