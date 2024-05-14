@@ -24,87 +24,102 @@ app = Flask(__name__)
 CORS(app)
 
 
-@app.route("/textract/queries",methods=["POST"])
+from flask import request
+
+@app.route("/textract/queries", methods=["POST"])
 def use_textract_queries():
     try:
-        data = request.json 
-    except:
-        return ({"error": "No JSON object received!"}), 400
-    
-    if 'image_url' not in data:
-        return ({"error": "image url is missing!"}), 400
-    if 'query_list' not in data:
-        return ({"error": "query list is missing!"}), 400
-    client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    response = requests.get(data['image_url'])
-    img_bytes = BytesIO(response.content)
-    data_list = {}
-    with BytesIO(response.content) as image:
-        img_bytes = bytearray(image.read())
+        if 'file' not in request.files:
+            return {"error": "No file received!"}, 400
+
+        file = request.files['file']
+        
+        if file.filename == '':
+            return {"error": "No file selected!"}, 400
+
+        file_bytes = file.read()
+        
+        query_list = []
+        
+        for key, value in request.form.items():
+            query_list.append({
+                "Text": value,
+                "Alias": value
+                })
+      
+        client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+        
         response = client.analyze_document(
-            Document={'Bytes': img_bytes},
+            Document={'Bytes': file_bytes},
             FeatureTypes=["QUERIES"],
             QueriesConfig={
-                "Queries": data['query_list']
+                "Queries": query_list
             }
         )
 
+        data_list = {}
+
         for idx, item in enumerate(response["Blocks"]):
             if item["BlockType"] == "QUERY_RESULT":
-                data_list[response["Blocks"][response["Blocks"].index(item)-1]['Query']['Alias']]=item["Text"]       
+                data_list[response["Blocks"][response["Blocks"].index(item)-1]['Query']['Alias']] = item["Text"]       
 
-    return data_list,200
+        return data_list, 200
+
+    except Exception as e:
+        return {"error": str(e)}, 500
+
 
 
 @app.route("/textract/tables", methods=["POST"])
 def use_textract_tables():
     try:
-        data = request.json 
-    except:
-        return ({"error": "No JSON object received!"}), 400
-    
-    if 'image_url' not in data:
-        return ({"error": "image url is missing!"}), 400
+        if 'file' not in request.files:
+            return {"error": "No file received!"}, 400
 
-    client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    response = requests.get(data['image_url'])
-    
-    img_bytes = BytesIO(response.content)
-    data_list = []
+        file = request.files['file']
+        
+        if file.filename == '':
+            return {"error": "No file selected!"}, 400
 
-    with BytesIO(response.content) as image:
-        img_bytes = bytearray(image.read())
+        file_bytes = file.read()
+
+        client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+        
         response = client.analyze_document(
-            Document={'Bytes': img_bytes},
+            Document={'Bytes': file_bytes},
             FeatureTypes=["TABLES"],
         )
+
+        data_list = []
 
         for idx, item in enumerate(response["Blocks"]):
             if item["BlockType"] == "LINE":
                 data_list.append(item['Text'])
 
-    return {"text_data": data_list}, 200
+        return {"text_data": data_list}, 200
+
+    except Exception as e:
+        return {"error": str(e)}, 500
+
 
 
 @app.route("/textract/forms", methods=["POST"])
 def use_textract_forms():
     try:
-        data = request.json 
-    except:
-        return ({"error": "No JSON object received!"}), 400
-    
-    if 'image_url' not in data:
-        return ({"error": "image url is missing!"}), 400
+        if 'file' not in request.files:
+            return {"error": "No file received!"}, 400
 
-    client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    response = requests.get(data['image_url'])
+        file = request.files['file']
+        
+        if file.filename == '':
+            return {"error": "No file selected!"}, 400
 
-    img_bytes = BytesIO(response.content)    
+        file_bytes = file.read()
 
-    with BytesIO(response.content) as image:
-        img_bytes = bytearray(image.read())
+        client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+        
         response = client.analyze_document(
-            Document={'Bytes': img_bytes},
+            Document={'Bytes': file_bytes},
             FeatureTypes=["FORMS"],
         )
 
@@ -129,7 +144,10 @@ def use_textract_forms():
             val = get_text(value_block, block_map)
             kvs[key].append(val)
 
-    return {"form_data": kvs}, 200
+        return {"form_data": kvs}, 200
+
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 
 def find_value_block(key_block, value_map):
