@@ -3,4 +3,4 @@ pillow
 requests
 flask
 flask_cors
-pypdf2
+PyPDF2
