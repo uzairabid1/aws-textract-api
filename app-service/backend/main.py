@@ -34,23 +34,15 @@ app = Flask(__name__)
 CORS(app)
 
 
-def download_file_from_s3(bucket_name, file_name, aws_region_name, aws_access_key_id, aws_secret_access_key):
-    s3_client = boto3.client('s3', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    response = s3_client.get_object(Bucket=bucket_name, Key=file_name)
-    file_bytes = response['Body'].read()
-    return file_bytes
-
-def get_pdf_num_pages_from_s3(bucket_name, file_name, aws_region_name, aws_access_key_id, aws_secret_access_key):
+def get_pdf_num_pages(file_bytes):
     try:
-        file_bytes = download_file_from_s3(bucket_name, file_name, aws_region_name, aws_access_key_id, aws_secret_access_key)
         file_stream = io.BytesIO(file_bytes)
-        pdf_reader = PyPDF2.PdfFileReader(file_stream)
+        pdf_reader = PyPDF2.PdfReader(file_stream)
         num_pages = pdf_reader.getNumPages()
         return num_pages
     except Exception as e:
         print(f"Error reading PDF: {e}")
         return 0
-
 
 def upload_pdf_to_s3_2(pdf_content, pdf_file_name):
     s3_client = boto3.client('s3', aws_access_key_id=s3_access_key, aws_secret_access_key=s3_secret_key)
@@ -71,27 +63,17 @@ def use_textract_queries():
             return {"error": "No file selected!"}, 400
         
         file_bytes = file.read()
-        print(f"Received file: {file.filename}, size: {len(file_bytes)} bytes")
-        
-        mime_type, _ = mimetypes.guess_type(file.filename)
-        print(f"Detected MIME type: {mime_type}")
-        
+
         s3_url = upload_pdf_to_s3_2(file_bytes, file.filename)
-        print(f"Uploaded file to S3: {s3_url}")
+
+        mime_type, _ = mimetypes.guess_type(file.filename)
 
         if mime_type == 'application/pdf':
-            num_pages = get_pdf_num_pages_from_s3(s3_bucket_name, file.filename, aws_region_name, aws_access_key_id, aws_secret_access_key)
-            print(f"Number of pages in PDF: {num_pages}")
-            if num_pages == 0:
-                return {"error": "Invalid PDF or unable to read the file"}, 400
+            num_pages = get_pdf_num_pages(file_bytes)
         else:
             num_pages = 1
-
-
         
         query_list = []
-        
-        s3_url = upload_pdf_to_s3_2(file_bytes, file.filename)
         client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
 
 
