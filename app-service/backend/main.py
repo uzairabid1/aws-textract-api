@@ -45,7 +45,7 @@ def get_pdf_num_pages_from_s3(bucket_name, file_name, aws_region_name, aws_acces
         file_bytes = download_file_from_s3(bucket_name, file_name, aws_region_name, aws_access_key_id, aws_secret_access_key)
         file_stream = io.BytesIO(file_bytes)
         pdf_reader = PyPDF2.PdfFileReader(file_stream)
-        num_pages = pdf_reader.numPages
+        num_pages = pdf_reader.getNumPages()
         return num_pages
     except Exception as e:
         print(f"Error reading PDF: {e}")
