@@ -76,6 +76,7 @@ def use_textract_queries():
         query_list = []
         client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
 
+        print(num_pages)
 
         for key, value in request.form.items():
             query_list.append({
