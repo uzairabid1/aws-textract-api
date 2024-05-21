@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import time
 import PyPDF2
 import mimetypes
+import io
 
 from flask import request
 
@@ -35,11 +36,13 @@ CORS(app)
 
 def get_pdf_num_pages(file_bytes):
     try:
-        pdf_reader = PyPDF2.PdfFileReader(file_bytes)
+        file_stream = io.BytesIO(file_bytes)
+        pdf_reader = PyPDF2.PdfFileReader(file_stream)
         num_pages = pdf_reader.numPages
         return num_pages
-    except:
-        return 0 
+    except Exception as e:
+        print(f"Error reading PDF: {e}")
+        return 0
 
 def upload_pdf_to_s3_2(pdf_content, pdf_file_name):
     s3_client = boto3.client('s3', aws_access_key_id=s3_access_key, aws_secret_access_key=s3_secret_key)
@@ -60,20 +63,20 @@ def use_textract_queries():
             return {"error": "No file selected!"}, 400
         
         file_bytes = file.read()
-
-        s3_url = upload_pdf_to_s3_2(file_bytes, file.filename)
-
+        
         mime_type, _ = mimetypes.guess_type(file.filename)
-
+        
         if mime_type == 'application/pdf':
-            num_pages = get_pdf_num_pages(file)
-            print(num_pages)
+            num_pages = get_pdf_num_pages(file_bytes)
+            print(f"Number of pages in PDF: {num_pages}")
             if num_pages == 0:
                 return {"error": "Invalid PDF or unable to read the file"}, 400
         else:
             num_pages = 1
         
         query_list = []
+        
+        s3_url = upload_pdf_to_s3_2(file_bytes, file.filename)
         client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
 
 
