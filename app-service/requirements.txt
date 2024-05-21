@@ -3,4 +3,4 @@ pillow
 requests
 flask
 flask_cors
-PyPDF2
+PyPDF2==2.12.0
