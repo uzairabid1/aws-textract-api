@@ -13,6 +13,7 @@ from collections import defaultdict
 from dotenv import load_dotenv
 import time
 import PyPDF2
+import mimetypes
 
 from flask import request
 
@@ -57,11 +58,20 @@ def use_textract_queries():
         
         if file.filename == '':
             return {"error": "No file selected!"}, 400
+        
+        file_bytes = file.read()
 
-        num_pages = get_pdf_num_pages(file)
-        print(num_pages)
-        if num_pages == 0:
-            return {"error": "Invalid PDF or unable to read the file"}, 400
+        s3_url = upload_pdf_to_s3_2(file_bytes, file.filename)
+
+        mime_type, _ = mimetypes.guess_type(file.filename)
+
+        if mime_type == 'application/pdf':
+            num_pages = get_pdf_num_pages(file)
+            print(num_pages)
+            if num_pages == 0:
+                return {"error": "Invalid PDF or unable to read the file"}, 400
+        else:
+            num_pages = 1
         
         query_list = []
         client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
