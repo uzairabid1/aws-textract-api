@@ -6,7 +6,8 @@ import boto3
 from PIL import Image
 import requests
 from io import BytesIO
-from flask import Flask,Blueprint, request
+from flask import Flask,Blueprint, request, jsonify
+import base64
 import os
 from flask_cors import CORS
 from collections import defaultdict
@@ -238,6 +239,55 @@ def use_textract_forms():
 
     except Exception as e:
         return {"error": str(e)}, 500
+    
+
+@app.route("/textract/forms_one_page", methods=["POST"])
+def use_textract_forms_one_page():
+    try:
+        data = request.json 
+    except:
+        return jsonify({"error": "No JSON object received!"}), 400
+    
+    if 'base64_string' not in data:
+        return jsonify({"error": "base64 string is missing!"}), 400
+
+    try:
+        pdf_bytes = base64.b64decode(data['base64_string'])
+    except Exception as e:
+        return jsonify({"error": "Invalid base64 string!"}), 400
+
+    client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+    
+    try:
+        response = client.analyze_document(
+            Document={'Bytes': pdf_bytes},
+            FeatureTypes=["FORMS"],
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    blocks = response["Blocks"]
+
+    key_map = {}
+    value_map = {}
+    block_map = {}
+    for block in blocks:
+        block_id = block['Id']
+        block_map[block_id] = block
+        if block['BlockType'] == "KEY_VALUE_SET":
+            if 'KEY' in block['EntityTypes']:
+                key_map[block_id] = block
+            else:
+                value_map[block_id] = block
+
+    kvs = defaultdict(list)
+    for block_id, key_block in key_map.items():
+        value_block = find_value_block(key_block, value_map)
+        key = get_text(key_block, block_map)
+        val = get_text(value_block, block_map)
+        kvs[key].append(val)
+
+    return jsonify({"form_data": kvs}), 200    
 
 def find_value_block(key_block, value_map):
     for relationship in key_block['Relationships']:
@@ -262,4 +312,4 @@ def get_text(result, blocks_map):
             
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
