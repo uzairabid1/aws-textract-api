@@ -289,6 +289,91 @@ def use_textract_forms_one_page():
 
     return jsonify({"form_data": kvs}), 200    
 
+
+@app.route("/textract/forms_image", methods=["POST"])
+def use_textract_forms_image():
+    try:
+        data = request.json
+        base64_string = data.get('base64_string', '')
+        if not base64_string:
+            return jsonify({"error": "base64_string is missing or empty!"}), 400
+
+        img_bytes = base64.b64decode(base64_string)
+
+        client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+
+        with BytesIO(img_bytes) as image:
+            img_bytes = bytearray(image.read())
+            response = client.analyze_document(
+                Document={'Bytes': img_bytes},
+                FeatureTypes=["FORMS"],
+            )
+
+            blocks = response["Blocks"]
+
+            key_map = {}
+            value_map = {}
+            block_map = {}
+            for block in blocks:
+                block_id = block['Id']
+                block_map[block_id] = block
+                if block['BlockType'] == "KEY_VALUE_SET":
+                    if 'KEY' in block['EntityTypes']:
+                        key_map[block_id] = block
+                    else:
+                        value_map[block_id] = block
+
+            kvs = defaultdict(list)
+            for block_id, key_block in key_map.items():
+                value_block = find_value_block(key_block, value_map)
+                key = get_text(key_block, block_map)
+                val = get_text(value_block, block_map)
+                kvs[key].append(val)
+
+        return jsonify({"form_data": kvs}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/textract/query_image", methods=["POST"])
+def use_textract_query_image():
+    try:
+        data = request.json
+        base64_string = data.get('base64_string', '')
+        query_list = data.get('query_list', [])
+
+        if not base64_string:
+            return jsonify({"error": "base64_string is missing or empty!"}), 400
+        if not query_list:
+            return jsonify({"error": "query_list is missing or empty!"}), 400
+
+
+        img_bytes = base64.b64decode(base64_string)
+
+        client = boto3.client('textract', region_name=aws_region_name, aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
+
+        with BytesIO(img_bytes) as image:
+            img_bytes = bytearray(image.read())
+            response = client.analyze_document(
+                Document={'Bytes': img_bytes},
+                FeatureTypes=["QUERIES"],
+                QueriesConfig={
+                    "Queries": query_list
+                }
+            )
+
+            data_list = {}
+            for idx, item in enumerate(response["Blocks"]):
+                if item["BlockType"] == "QUERY_RESULT":
+                    data_list[response["Blocks"][response["Blocks"].index(item)-1]['Query']['Alias']] = item["Text"]       
+
+        return jsonify(data_list), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def find_value_block(key_block, value_map):
     for relationship in key_block['Relationships']:
         if relationship['Type'] == 'VALUE':
